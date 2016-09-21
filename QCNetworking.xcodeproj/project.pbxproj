@@ -153,6 +153,8 @@
 				TargetAttributes = {
 					D8FD0D411D86A17100E01994 = {
 						CreatedOnToolsVersion = 7.3.1;
+						DevelopmentTeam = TTV4VMEQ9V;
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -357,6 +359,8 @@
 			baseConfigurationReference = 2F465F4B030EB90F34FC11ED /* Pods.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				DEVELOPMENT_TEAM = TTV4VMEQ9V;
 				INFOPLIST_FILE = QCNetworking/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = cn.joesir.www.QCNetworking;
@@ -369,6 +373,8 @@
 			baseConfigurationReference = 7F6B82D0D43A3F791AE617B5 /* Pods.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				DEVELOPMENT_TEAM = TTV4VMEQ9V;
 				INFOPLIST_FILE = QCNetworking/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = cn.joesir.www.QCNetworking;

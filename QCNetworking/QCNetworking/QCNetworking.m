@@ -127,6 +127,73 @@ static AFHTTPSessionManager *_manager;
     return session;
 }
 
+
+
+
+/**
+ *   GET请求(自动缓存)
+ *
+ *   @param url           url
+ *   @param params        请求的参数字典
+ *   @param successBlock  成功的回调
+ *   @param failureBlock  失败的回调
+ *   @param showHUD       是否加载进度指示器
+ */
++ (NSURLSessionTask *)getRequestWithUrl:(NSString *)url
+                                 params:(NSDictionary *)params
+                           successBlock:(QCSuccessBlock)successBlock
+                           failureBlock:(QCFailureBlock)failureBlock
+                                showHUD:(BOOL)showHUD{
+    
+    __block NSURLSessionTask *session = nil;
+    
+    if (networkStatus == QCNetworkStatusNotReachable || networkStatus == 0) {
+        
+        failureBlock ? failureBlock(QC_ERROR) : 0;
+        
+        id responseObject = [QCNetworkCache getCacheResponseObjectWithRequestUrl:url params:params];
+        
+        if (responseObject) {
+            
+            int code = 0;
+            NSString *msg = nil;
+            if (responseObject) {
+                //这个字段取决于 服务器
+                code                = [responseObject[@"rsCode"] intValue];
+                msg                 = responseObject[@"rsMsg"];
+            }
+            successBlock ? successBlock(responseObject, code, msg) : 0;
+        }
+        
+        return session;
+    }
+    
+    if(showHUD)  NSLog(@"加载中...");
+    
+    session = [_manager GET:url parameters:params progress:nil success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+        
+        int code = 0;
+        NSString *msg = nil;
+        
+        if (responseObject) {
+            //这个字段取决于 服务器
+            code                = [responseObject[@"rsCode"] intValue];
+            msg                 = responseObject[@"rsMsg"];
+        }
+        
+        successBlock ? successBlock(responseObject, code, msg) : 0;
+        
+        [QCNetworkCache cacheResponseObject:responseObject requestUrl:url params:params];
+        
+    } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+        failureBlock ? failureBlock(error) : 0;
+    }];
+    
+    [session resume];
+    
+    return session;
+}
+
 #pragma mark - 发送 POST 请求
 
 /**
@@ -160,8 +227,8 @@ static AFHTTPSessionManager *_manager;
             NSString *msg = nil;
             if (responseObject) {
                 //这个字段取决于 服务器
-                code                = [responseObject[@"rsCode"] intValue];
-                msg                 = responseObject[@"rsMsg"];
+//                code                = [responseObject[@"rsCode"] intValue];
+//                msg                 = responseObject[@"rsMsg"];
             }
             successBlock ? successBlock(responseObject, code, msg) : 0;
         }
@@ -182,8 +249,8 @@ static AFHTTPSessionManager *_manager;
         NSString *msg = nil;
         if (responseObject) {
             //这个字段取决于 服务器
-            code                = [responseObject[@"rsCode"] intValue];
-            msg                 = responseObject[@"rsMsg"];
+//            code                = [responseObject[@"rsCode"] intValue];
+//            msg                 = responseObject[@"rsMsg"];
         }
         successBlock ? successBlock(responseObject, code, msg) : 0;
         
@@ -380,9 +447,6 @@ static AFHTTPSessionManager *_manager;
     
     __block NSURLSessionTask *session = nil;
     
-    NSString *type = nil;
-    NSArray *subStringArr = nil;
-    
     NSURL *fileUrl = [QCNetworkCache getDownloadDataFromCacheWithRequestUrl:url];
     
     if (fileUrl) {
@@ -398,12 +462,28 @@ static AFHTTPSessionManager *_manager;
     
     if(showHUD) NSLog(@"加载中");
     
-    if (url) {
-        subStringArr = [url componentsSeparatedByString:@"."];
-        if (subStringArr.count > 0) {
-            type = subStringArr[subStringArr.count - 1];
-        }
-    }
+//    session = [_manager downloadTaskWithRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:url]] progress:^(NSProgress * _Nonnull downloadProgress) {
+//        
+//        progressBlock ? progressBlock((float)downloadProgress.completedUnitCount/(float)downloadProgress.totalUnitCount) : 0;
+//        
+//    } destination:^NSURL * _Nonnull(NSURL * _Nonnull targetPath, NSURLResponse * _Nonnull response) {
+//        
+//        NSString *downloadDir = [[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject] stringByAppendingPathComponent: @"Download"];
+//        NSFileManager *fileManager = [NSFileManager defaultManager];
+//        [fileManager createDirectoryAtPath:downloadDir withIntermediateDirectories:YES attributes:nil error:nil];
+//        NSString *filePath = [downloadDir stringByAppendingPathComponent:response.suggestedFilename];
+//        
+//        return [NSURL fileURLWithPath:filePath];
+//        
+//    } completionHandler:^(NSURLResponse * _Nonnull response, NSURL * _Nullable filePath, NSError * _Nullable error) {
+//        
+//        if (error){
+//            failureBlock ? failureBlock(error) : 0;
+//        }else{
+//            successBlock ? successBlock(filePath) : 0;
+//        }
+//        
+//    }];
     
     //响应内容序列化为二进制
     _manager.responseSerializer = [AFHTTPResponseSerializer serializer];
@@ -413,9 +493,9 @@ static AFHTTPSessionManager *_manager;
         progressBlock ? progressBlock((float)downloadProgress.completedUnitCount/(float)downloadProgress.totalUnitCount) : 0;
 
     } success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
-        NSLog(@"加载完成");
         
         if (successBlock) {
+
             NSData *data = (NSData *)responseObject;
             
             [QCNetworkCache saveDownloadData:data requestUrl:url];
@@ -426,10 +506,7 @@ static AFHTTPSessionManager *_manager;
         }
         
     } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
-        NSLog(@"加载完成");
-        
         failureBlock ? failureBlock(error) : 0;
-
     }];
     
     [session resume];
@@ -481,12 +558,14 @@ static AFHTTPSessionManager *_manager;
 
 @implementation QCNetworkCache
 
-static NSString *const cacheDirKey = @"cacheDirKey";
+//static NSString *const cacheDirKey = @"cacheDirKey";
 static NSString *const downloadDirKey = @"downloadDirKey";
 static YYCache  *cache;
 
 + (void)initialize{
-    cache = [YYCache cacheWithName:cacheDirKey];
+    NSString *path = [[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:@"cacheDirKey"];
+    cache = [YYCache cacheWithPath:path];
+//    cache = [YYCache cacheWithName:cacheDirKey];
     cache.memoryCache.shouldRemoveAllObjectsOnMemoryWarning = YES;
     cache.memoryCache.shouldRemoveAllObjectsWhenEnteringBackground = YES;
 }
@@ -524,80 +603,70 @@ static YYCache  *cache;
     assert(data);
     assert(requestUrl);
     
-    NSString *fileName = nil;
-    NSString *type = nil;
-    NSArray *strArray = nil;
-    
-    strArray = [requestUrl componentsSeparatedByString:@"."];
-    if (strArray.count > 0) {
-        type = strArray[strArray.count - 1];
-    }
-    
-    if (type) {
-        fileName = [NSString stringWithFormat:@"%@.%@",[self md5:requestUrl],type];
-    }else {
-        fileName = [NSString stringWithFormat:@"%@",[self md5:requestUrl]];
-    }
-    
-    NSString *directoryPath = nil;
-    directoryPath = [[NSUserDefaults standardUserDefaults] objectForKey:downloadDirKey];
+    NSString *directoryPath = [self getDownDirectoryPath];
     if (!directoryPath) {
-        directoryPath = [[[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:@"QCNetworking"] stringByAppendingPathComponent:@"download"];
-        
+        directoryPath = [[[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:@"QCNetworking"] stringByAppendingPathComponent:@"download"];
+
         [[NSUserDefaults standardUserDefaults] setObject:directoryPath forKey:downloadDirKey];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
     
-    NSError *error = nil;
     if (![[NSFileManager defaultManager] fileExistsAtPath:directoryPath isDirectory:nil]) {
+        
+        NSError *error = nil;
         [[NSFileManager defaultManager] createDirectoryAtPath:directoryPath withIntermediateDirectories:YES attributes:nil error:&error];
+        
+        if (error) {
+            NSLog(@"创建目录错误: %@",error.localizedDescription);
+            return;
+        }
     }
     
-    if (error) {
-        NSLog(@"创建目录错误: %@",error.localizedDescription);
-        return;
-    }
-    
+    NSString *fileName = [self fileNameWithRequestUrl:requestUrl];
     NSString *filePath = [directoryPath stringByAppendingPathComponent:fileName];
     
+    NSLog(@"filePath = %@", filePath);
+
     [[NSFileManager defaultManager] createFileAtPath:filePath contents:data attributes:nil];
 }
 
 + (NSURL *)getDownloadDataFromCacheWithRequestUrl:(NSString *)requestUrl {
-    
     assert(requestUrl);
     
-    NSData *data = nil;
-    NSString *fileName = nil;
-    NSString *type = nil;
-    NSArray *strArray = nil;
-    NSURL *fileUrl = nil;
+    NSString *directoryPath = [self getDownDirectoryPath];
+    if (directoryPath){
+        NSString *fileName = [self fileNameWithRequestUrl:requestUrl];
+        NSString *filePath = [directoryPath stringByAppendingPathComponent:fileName];
+        NSData *data = [[NSFileManager defaultManager] contentsAtPath:filePath];
+        
+        NSDirectoryEnumerator *direnum = [[NSFileManager defaultManager] enumeratorAtPath:directoryPath];
     
-    strArray = [requestUrl componentsSeparatedByString:@"."];
+        while ([direnum nextObject]) {
+            NSLog(@"direnum filename = %@ \n", fileName);
+        }
+        NSLog(@"directoryPath = %@ filePath  = %@  data = %@", directoryPath, filePath, data);
+        
+
+        if (data) return [NSURL fileURLWithPath:filePath];
+    }
+    
+    return nil;
+}
+
++ (NSString *)fileNameWithRequestUrl:(NSString *)requestUrl{
+    NSString *type = nil;
+    NSArray *strArray = [requestUrl componentsSeparatedByString:@"."];
     if (strArray.count > 0) {
         type = strArray[strArray.count - 1];
     }
     
+    NSString *fileName = nil;
     if (type) {
         fileName = [NSString stringWithFormat:@"%@.%@",[self md5:requestUrl],type];
     }else {
         fileName = [NSString stringWithFormat:@"%@",[self md5:requestUrl]];
     }
-    
-    
-    NSString *directoryPath = [[NSUserDefaults standardUserDefaults] objectForKey:downloadDirKey];
-    
-    if (directoryPath){
-        NSString *filePath = [directoryPath stringByAppendingPathComponent:fileName];
-        data = [[NSFileManager defaultManager] contentsAtPath:filePath];
-    }
-    
-    if (data) {
-        NSString *path = [directoryPath stringByAppendingPathComponent:fileName];
-        fileUrl = [NSURL fileURLWithPath:path];
-    }
-    
-    return fileUrl;
+    return fileName;
 }
 
 
@@ -614,7 +683,7 @@ static YYCache  *cache;
 }
 
 + (NSUInteger)totalDownloadDataSize{
-    NSString *diretoryPath = [[NSUserDefaults standardUserDefaults] objectForKey:downloadDirKey];
+    NSString *diretoryPath = [self getDownDirectoryPath];
     
     if (!diretoryPath) return 0;
     
@@ -641,7 +710,7 @@ static YYCache  *cache;
 }
 
 + (void)clearDownloadData{
-    NSString *diretoryPath = [[NSUserDefaults standardUserDefaults] objectForKey:downloadDirKey];
+    NSString *diretoryPath = [self getDownDirectoryPath];
     if (diretoryPath) {
         if ([[NSFileManager defaultManager] fileExistsAtPath:diretoryPath isDirectory:nil]) {
             NSError *error = nil;

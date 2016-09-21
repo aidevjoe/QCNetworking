@@ -18,11 +18,23 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    [QCNetworking downloadWithUrl:@"http://www.baidu.com/img/bdlogo.png" progressBlock:^(float progress) {
+    UIImageView *imageV = [[UIImageView alloc] init];
+    imageV.frame = CGRectMake(0, 0, 100, 100);
+    imageV.center = self.view.center;
+    imageV.backgroundColor = [UIColor redColor];
+    [self.view addSubview:imageV];
+    
+    NSString *image2 = @"http://www.baidu.com/img/bdlogo.png";
+    NSString *image = @"http://avatar.csdn.net/9/F/0/1_p2game.jpg";
+    [QCNetworking downloadWithUrl:image2 progressBlock:^(float progress) {
         NSLog(@"%f",progress);
 
     } successBlock:^(NSURL *fileUrl) {
-        NSLog(@"%@", fileUrl);
+        NSLog(@"fileUrl = %@", fileUrl);
+        
+        NSData *data = [NSData dataWithContentsOfURL:fileUrl];
+        
+        imageV.image = [UIImage imageWithData:data];
 
     } failureBlock:^(NSError *error) {
         NSLog(@"%@", error);
